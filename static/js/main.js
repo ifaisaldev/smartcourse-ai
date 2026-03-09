@@ -1,0 +1,334 @@
+// Track the current search_id so saves can be linked to the session
+let currentSearchId = null;
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Recommend Page Logic
+    const recommendForm = document.getElementById('recommendForm');
+    if (recommendForm) {
+        recommendForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const query = document.getElementById('query').value;
+            const model = document.querySelector('input[name="model"]:checked').value;
+            const resultsSection = document.getElementById('results-section');
+            const resultsContainer = document.getElementById('results-container');
+            const comparisonSection = document.getElementById('comparison-section');
+            const tfidfResults = document.getElementById('tfidf-results');
+            const neuralResults = document.getElementById('neural-results');
+
+            // Reset views
+            resultsSection.style.display = 'none';
+            comparisonSection.style.display = 'none';
+            currentSearchId = null;
+
+            if (model === 'compare') {
+                comparisonSection.style.display = 'block';
+                tfidfResults.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary" role="status"></div></div>';
+                neuralResults.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-success" role="status"></div></div>';
+
+                fetch('/api/compare', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        currentSearchId = data.search_id;
+                        tfidfResults.innerHTML = '';
+                        neuralResults.innerHTML = '';
+
+                        if (data.tfidf && data.tfidf.length > 0) {
+                            data.tfidf.forEach(course => tfidfResults.appendChild(createCourseCard(course, 'col-12 mb-3')));
+                        } else {
+                            tfidfResults.innerHTML = '<p class="text-center">No results.</p>';
+                        }
+
+                        if (data.neural && data.neural.length > 0) {
+                            data.neural.forEach(course => neuralResults.appendChild(createCourseCard(course, 'col-12 mb-3')));
+                        } else {
+                            neuralResults.innerHTML = '<p class="text-center">No results.</p>';
+                        }
+                        attachSaveListeners();
+                    });
+
+            } else {
+                resultsSection.style.display = 'block';
+                resultsContainer.innerHTML = '<div class="col-12 text-center"><div class="spinner-border text-primary" role="status"></div></div>';
+
+                fetch('/api/recommend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, model: model }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        currentSearchId = data.search_id;
+                        resultsContainer.innerHTML = '';
+                        if (data.results && data.results.length > 0) {
+                            data.results.forEach(course => {
+                                resultsContainer.appendChild(createCourseCard(course, 'col-md-6 mb-4'));
+                            });
+                            attachSaveListeners();
+                        } else {
+                            resultsContainer.innerHTML = '<div class="col-12 text-center"><p>No recommendations found.</p></div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        resultsContainer.innerHTML = '<div class="col-12 text-center text-danger"><p>An error occurred.</p></div>';
+                    });
+            }
+        });
+    }
+
+    function createCourseCard(course, colClass) {
+        const desc = course.description || 'No description.';
+        const truncated = desc.length > 120;
+        const shortDesc = truncated ? desc.substring(0, 120) + '...' : desc;
+        const uniqueId = 'desc-' + Math.random().toString(36).substring(2, 9);
+
+        const card = document.createElement('div');
+        card.className = colClass;
+        card.innerHTML = `
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title text-truncate" title="${course.course_title}">${course.course_title}</h5>
+                    <h6 class="card-subtitle mb-2 text-muted small">${course.subject || 'General'} | ${course.level || 'All'}</h6>
+                    <p class="card-text small" id="${uniqueId}">${shortDesc}</p>
+                    ${truncated ? `<a href="#" class="small text-primary toggle-desc" data-full="${desc.replace(/"/g, '&quot;')}" data-short="${shortDesc.replace(/"/g, '&quot;')}" data-target="${uniqueId}" data-expanded="false">Show more</a>` : ''}
+                    <div class="mb-2 mt-2">
+                        <div class="d-flex justify-content-between small text-muted mb-1">
+                            <span>Relevance</span>
+                            <span>${course.score}%</span>
+                        </div>
+                        <div class="progress" style="height: 4px;">
+                            <div class="progress-bar bg-info" role="progressbar" style="width: ${course.score}%"></div>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <a href="${course.url}" target="_blank" class="btn btn-sm btn-outline-primary">View</a>
+                        <button class="btn btn-sm btn-outline-success save-btn"
+                            data-title="${course.course_title}"
+                            data-url="${course.url}"
+                            data-score="${course.score}">
+                            <i class="fas fa-save"></i> Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Attach toggle listener for description expand/collapse
+        const toggleLink = card.querySelector('.toggle-desc');
+        if (toggleLink) {
+            toggleLink.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.getElementById(this.dataset.target);
+                const expanded = this.dataset.expanded === 'true';
+                if (expanded) {
+                    target.textContent = this.dataset.short;
+                    this.textContent = 'Show more';
+                    this.dataset.expanded = 'false';
+                } else {
+                    target.textContent = this.dataset.full;
+                    this.textContent = 'Show less';
+                    this.dataset.expanded = 'true';
+                }
+            });
+        }
+
+        return card;
+    }
+
+    function attachSaveListeners() {
+        document.querySelectorAll('.save-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                saveCourse(this.dataset.title, this.dataset.url, this.dataset.score, this);
+            });
+        });
+    }
+
+
+    // Dashboard Logic
+    const historyList = document.getElementById('historyList');
+    if (historyList) {
+        loadHistory();
+        loadSaved();
+
+        // Reload when tabs are clicked
+        document.getElementById('history-tab').addEventListener('shown.bs.tab', loadHistory);
+        document.getElementById('saved-tab').addEventListener('shown.bs.tab', loadSaved);
+    }
+});
+
+function saveCourse(title, url, score, btnElement) {
+    fetch('/api/save', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            course_title: title,
+            url: url,
+            score: score,
+            search_id: currentSearchId
+        }),
+    })
+        .then(response => response.json().then(data => ({ body: data })))
+        .then(({ body }) => {
+            if (body.success) {
+                btnElement.innerHTML = '<i class="fas fa-check"></i> Saved';
+                btnElement.disabled = true;
+                btnElement.classList.remove('btn-outline-success');
+                btnElement.classList.add('btn-success');
+            } else if (body.duplicate) {
+                btnElement.innerHTML = '<i class="fas fa-check"></i> Already Saved';
+                btnElement.disabled = true;
+                btnElement.classList.remove('btn-outline-success');
+                btnElement.classList.add('btn-secondary');
+            } else if (body.error) {
+                btnElement.innerHTML = '<i class="fas fa-times"></i> Error';
+                btnElement.classList.remove('btn-outline-success');
+                btnElement.classList.add('btn-outline-danger');
+            }
+        })
+        .catch(() => {
+            btnElement.innerHTML = '<i class="fas fa-times"></i> Error';
+            btnElement.classList.remove('btn-outline-success');
+            btnElement.classList.add('btn-outline-danger');
+        });
+}
+
+function loadHistory() {
+    const list = document.getElementById('historyList');
+    if (!list) return;
+
+    fetch('/api/history?include_results=true')
+        .then(response => response.json())
+        .then(data => {
+            list.innerHTML = '';
+            if (data.length === 0) {
+                list.innerHTML = '<div class="list-group-item">No search history found.</div>';
+                return;
+            }
+            data.forEach(item => {
+                const el = document.createElement('div');
+                el.className = 'list-group-item flex-column align-items-start';
+
+                let resultsHtml = '';
+                if (item.results) {
+                    if (item.model_used === 'comparison') {
+                        // Comparison results have tfidf and neural keys
+                        const tfidf = item.results.tfidf || [];
+                        const neural = item.results.neural || [];
+                        resultsHtml = `
+                            <div class="row mt-2">
+                                <div class="col-md-6">
+                                    <strong class="small text-primary">TF-IDF Results:</strong>
+                                    <ol class="small mb-0">${tfidf.slice(0, 5).map(c => `<li>${c.course_title} (${c.score}%)</li>`).join('')}</ol>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong class="small text-success">Neural Results:</strong>
+                                    <ol class="small mb-0">${neural.slice(0, 5).map(c => `<li>${c.course_title} (${c.score}%)</li>`).join('')}</ol>
+                                </div>
+                            </div>`;
+                    } else {
+                        // Single model results (array)
+                        const results = Array.isArray(item.results) ? item.results : [];
+                        resultsHtml = `
+                            <div class="mt-2">
+                                <strong class="small text-muted">Top Results:</strong>
+                                <ol class="small mb-0">${results.slice(0, 5).map(c => `<li>${c.course_title} (${c.score}%)</li>`).join('')}</ol>
+                            </div>`;
+                    }
+                }
+
+                el.innerHTML = `
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">"${item.query}"</h5>
+                    <small>${new Date(item.timestamp).toLocaleString()}</small>
+                </div>
+                <p class="mb-1">Model: <span class="badge bg-secondary">${item.model_used}</span></p>
+                ${resultsHtml}
+            `;
+                list.appendChild(el);
+            });
+        });
+}
+
+function loadSaved() {
+    const list = document.getElementById('savedList');
+    if (!list) return;
+
+    fetch('/api/saved')
+        .then(response => response.json())
+        .then(data => {
+            list.innerHTML = '';
+
+            const sessions = data.sessions || [];
+            const ungrouped = data.ungrouped || [];
+
+            if (sessions.length === 0 && ungrouped.length === 0) {
+                list.innerHTML = '<div class="col-12"><p class="text-center">No saved courses.</p></div>';
+                return;
+            }
+
+            // Render grouped sessions
+            sessions.forEach(session => {
+                const sessionEl = document.createElement('div');
+                sessionEl.className = 'col-12 mb-4';
+                sessionEl.innerHTML = `
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <strong>Search: "${session.query}"</strong>
+                            <span class="badge bg-secondary ms-2">${session.model_used}</span>
+                            <small class="text-muted float-end">${new Date(session.timestamp).toLocaleString()}</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row" id="session-${session.search_id}"></div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(sessionEl);
+
+                const container = sessionEl.querySelector(`#session-${session.search_id}`);
+                session.courses.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'col-md-6 mb-2';
+                    el.innerHTML = `
+                        <div class="card border">
+                            <div class="card-body py-2">
+                                <h6 class="card-title mb-1">${item.course_title}</h6>
+                                <small class="text-muted">Score: ${item.score}%</small>
+                                ${item.course_url ? `<a href="${item.course_url}" target="_blank" class="btn btn-sm btn-outline-primary ms-2">View</a>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(el);
+                });
+            });
+
+            // Render ungrouped saves
+            if (ungrouped.length > 0) {
+                const header = document.createElement('div');
+                header.className = 'col-12 mb-2';
+                header.innerHTML = '<h5 class="text-muted">Other Saved Courses</h5>';
+                list.appendChild(header);
+
+                ungrouped.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'col-md-6 mb-3';
+                    el.innerHTML = `
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">${item.course_title}</h5>
+                            <p class="card-text"><small class="text-muted">Saved on ${new Date(item.timestamp).toLocaleDateString()}</small></p>
+                            ${item.course_url ? `<a href="${item.course_url}" target="_blank" class="btn btn-sm btn-primary">View Course</a>` : ''}
+                        </div>
+                    </div>
+                `;
+                    list.appendChild(el);
+                });
+            }
+        });
+}

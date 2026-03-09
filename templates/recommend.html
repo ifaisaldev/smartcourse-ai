@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">Find a Course</h2>
+                <form id="recommendForm">
+                    <div class="mb-3">
+                        <label for="query" class="form-label">What do you want to learn?</label>
+                        <textarea class="form-control form-control-lg" id="query" rows="3"
+                            placeholder="e.g., 'I want to learn Python for data science'" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                    <label class="form-label">Select Model:</label>
+                    <div class="btn-group" role="group">
+                        <input type="radio" class="btn-check" name="model" id="tfidf" value="tfidf" checked>
+                        <label class="btn btn-outline-primary" for="tfidf">TF-IDF (Keyword)</label>
+
+                        <input type="radio" class="btn-check" name="model" id="neural" value="neural">
+                        <label class="btn btn-outline-primary" for="neural">Neural (Semantic)</label>
+                        
+                        <input type="radio" class="btn-check" name="model" id="compare" value="compare">
+                        <label class="btn btn-outline-primary" for="compare">Compare Both</label>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Get Recommendations</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="results-section" class="mt-5" style="display: none;">
+        <h3 class="mb-4">Recommended Courses</h3>
+        <div id="results-container" class="row">
+            <!-- Results will be injected here -->
+        </div>
+    </div>
+    
+    <div id="comparison-section" class="mt-5" style="display: none;">
+        <h3 class="mb-4 text-center">Model Comparison</h3>
+        <div class="row">
+            <div class="col-md-6">
+                <h4 class="text-center text-primary mb-3">TF-IDF Results</h4>
+                <div id="tfidf-results" class="row"></div>
+            </div>
+            <div class="col-md-6">
+                <h4 class="text-center text-success mb-3">Neural Results</h4>
+                <div id="neural-results" class="row"></div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

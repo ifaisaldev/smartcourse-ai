@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1>About SmartCourse</h1>
+    <p class="lead">An intelligent course recommendation system.</p>
+
+    <div class="mt-4">
+        <h3>Technical Details</h3>
+        <p>SmartCourse utilizes two distinct approaches to recommendation:</p>
+        <ul>
+            <li><strong>TF-IDF (Term Frequency-Inverse Document Frequency):</strong> Analyzes the frequency of keywords
+                in your query against course descriptions to find exact matches. Best for specific technical terms.</li>
+            <li><strong>Neural Sentence Transformers:</strong> Uses a pre-trained deep learning model (all-MiniLM-L6-v2)
+                to understand the <em>meaning</em> and <em>context</em> of your query, finding semantically similar
+                courses even if they don't share exact keywords.</li>
+        </ul>
+    </div>
+
+    <div class="mt-4">
+        <h3>Dataset</h3>
+        <p>The system is trained on a dataset of over 3,000 courses from various online platforms, covering topics in
+            Business, Finance, Technology, and more.</p>
+    </div>
+</div>
+<div class="row mt-5">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4 class="mb-0">Dataset Statistics</h4>
+            </div>
+            <div class="card-body">
+                <div class="row text-center" id="dataset-stats">
+                    <div class="col-md-4">
+                        <h2 id="total-courses">-</h2>
+                        <p class="text-muted">Total Courses</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h2 id="total-subjects">-</h2>
+                        <p class="text-muted">Subjects</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h2 id="total-levels">-</h2>
+                        <p class="text-muted">Difficulty Levels</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        fetch('/api/courses')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.error) {
+                    document.getElementById('total-courses').textContent = data.total_courses;
+                    document.getElementById('total-subjects').textContent = data.subjects;
+                    document.getElementById('total-levels').textContent = data.levels.length;
+                }
+            });
+    });
+</script>
+{% endblock %}

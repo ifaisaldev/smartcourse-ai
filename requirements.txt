@@ -1,0 +1,8 @@
+flask
+flask-sqlalchemy
+pandas
+scikit-learn
+spacy
+sentence-transformers
+joblib
+numpy
